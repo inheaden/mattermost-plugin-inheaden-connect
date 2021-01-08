@@ -1,4 +1,4 @@
-module github.com/mattermost/mattermost-plugin-starter-template
+module github.com/inheaden/mattermost-plugin-inheaden-connect
 
 go 1.12
 

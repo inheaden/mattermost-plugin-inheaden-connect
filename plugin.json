@@ -1,22 +1,47 @@
 {
-    "id": "com.mattermost.plugin-starter-template",
-    "name": "Plugin Starter Template",
-    "description": "This plugin serves as a starting point for writing a Mattermost plugin.",
-    "version": "0.1.0",
-    "min_server_version": "5.12.0",
-    "server": {
-        "executables": {
-            "linux-amd64": "server/dist/plugin-linux-amd64",
-            "darwin-amd64": "server/dist/plugin-darwin-amd64",
-            "windows-amd64": "server/dist/plugin-windows-amd64.exe"
-        }
-    },
-    "webapp": {
-        "bundle_path": "webapp/dist/main.js"
-    },
-    "settings_schema": {
-        "header": "",
-        "footer": "",
-        "settings": []
+  "id": "io.inheaden.inheaden-connect",
+  "name": "Inheaden Connect plugin",
+  "description": "This plugin allows you to start meetings from within mattermost.",
+  "version": "0.1.0",
+  "min_server_version": "5.12.0",
+  "icon_path": "assets/AppIcon.png",
+  "server": {
+    "executables": {
+      "linux-amd64": "server/dist/plugin-linux-amd64",
+      "darwin-amd64": "server/dist/plugin-darwin-amd64",
+      "windows-amd64": "server/dist/plugin-windows-amd64.exe"
     }
+  },
+  "webapp": {
+    "bundle_path": "webapp/dist/main.js"
+  },
+  "settings_schema": {
+    "header": "To setup this plugin, create an ApiKey on Inheaden Connect.",
+    "footer": "",
+    "settings": [
+      {
+        "key": "InheadenConnectAPIURL",
+        "display_name": "Inheaden Connect URL",
+        "type": "text",
+        "help_text": "The URL for the Inheaden Connect Api.",
+        "placeholder": "https://preview.inco.video",
+        "default": "https://preview.inco.video"
+      },
+      {
+        "key": "APIKey",
+        "display_name": "Your api key",
+        "type": "text",
+        "help_text": "The api key for your account.",
+        "placeholder": "XXX:YYY",
+        "default": null
+      },
+      {
+        "key": "DefaultMeetingRoomID",
+        "display_name": "Default meeting room ID",
+        "type": "text",
+        "help_text": "This ID will be used if no meeting room is specified.",
+        "default": null
+      }
+    ]
+  }
 }
