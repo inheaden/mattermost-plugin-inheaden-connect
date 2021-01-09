@@ -68,8 +68,14 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var response JoinResponse
+
+	fullName := user.GetFullName()
+	if len(fullName) == 0 {
+		fullName = user.Username
+	}
+
 	p.createMeeting(w, r, JoinRequest{
-		FullName: user.GetFullName(),
+		FullName: fullName,
 	}, &response)
 
 	result, err := json.Marshal(map[string]string{
@@ -98,7 +104,7 @@ func (p *Plugin) createMeeting(w http.ResponseWriter, r *http.Request, joinReque
 	}
 
 	client := http.Client{
-		Timeout: time.Duration(5 * time.Second),
+		Timeout: time.Duration(10 * time.Second),
 	}
 	request, err := http.NewRequest("POST", fmt.Sprintf("%s/api/connect/v1/meetingRoom/%s/join", apiURL, meetingID), bytes.NewBuffer(requestBody))
 	request.Header.Set("Authorization", fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(apiKey))))

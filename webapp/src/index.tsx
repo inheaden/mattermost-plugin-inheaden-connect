@@ -1,13 +1,15 @@
 import { Store, Action } from "redux";
 
 import { GlobalState } from "mattermost-redux/types/store";
-import { startMeeting } from "./actions";
+import { showMeetingMessage } from "./actions";
 import manifest from "./manifest";
 import Client from "./client";
 import { getConfig } from "mattermost-redux/selectors/entities/general";
 
 // eslint-disable-next-line import/no-unresolved
 import { PluginRegistry } from "./types/mattermost-webapp";
+import StartMeeting from "./components/StartMeeting";
+
 const Icon = () => <i className="icon fa fa-phone" />;
 export default class Plugin {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-empty-function
@@ -18,11 +20,15 @@ export default class Plugin {
     registry.registerChannelHeaderButtonAction(
       <Icon />,
       (channel) => {
-        startMeeting(channel.id)(store.dispatch, store.getState);
+        showMeetingMessage(channel.id)(store.dispatch, store.getState);
       },
       "Start Inheaden Connect Meeting"
     );
     Client.setServerRoute(getServerRoute(store.getState()));
+    registry.registerPostTypeComponent(
+      "custom_inco_start_meeting",
+      StartMeeting
+    );
     // @see https://developers.mattermost.com/extend/plugins/webapp/reference/
   }
 }
