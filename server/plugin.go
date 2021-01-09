@@ -25,10 +25,16 @@ type Plugin struct {
 	configuration *configuration
 }
 
+// JoinResponse will be returned by the Inheaden Connect backend.
 type JoinResponse struct {
-	Success bool
-	Message string
+	Success bool   `json:"success"`
+	Message string `json:"message"`
 	JoinURL string `json:"joinUrl"`
+}
+
+// JoinRequest is used when trying to join a meeting.
+type JoinRequest struct {
+	FullName string `json:"fullName"`
 }
 
 // ServeHTTP demonstrates a plugin that handles HTTP requests by greeting the world.
@@ -42,6 +48,7 @@ func (p *Plugin) ServeHTTP(c *plugin.Context, w http.ResponseWriter, r *http.Req
 }
 
 func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
+	p.API.LogInfo("handleStartMeeting")
 	config := p.getConfiguration()
 	if err := config.IsValid(); err != nil {
 		http.Error(w, "This plugin is not configured.", http.StatusNotImplemented)
@@ -60,38 +67,71 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var response JoinResponse
+	p.createMeeting(w, r, JoinRequest{
+		FullName: user.GetFullName(),
+	}, &response)
+
+	result, err := json.Marshal(map[string]string{
+		"joinUrl": response.JoinURL,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(result)
+}
+
+func (p *Plugin) createMeeting(w http.ResponseWriter, r *http.Request, joinRequest JoinRequest, response *JoinResponse) {
+
 	apiURL := p.configuration.InheadenConnectAPIURL
 	apiKey := p.configuration.APIKey
 	meetingID := p.configuration.DefaultMeetingRoomID
 
-	body, _ := json.Marshal(map[string]string{
-		"fullName": user.GetFullName(),
-	})
+	requestBody, err := json.Marshal(joinRequest)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	client := http.Client{
 		Timeout: time.Duration(5 * time.Second),
 	}
-	request, err := http.NewRequest("POST", fmt.Sprintf("%s/api/connect/v1/meetingRoom/join?token=%s", apiURL, meetingID), bytes.NewBuffer(body))
+	request, err := http.NewRequest("POST", fmt.Sprintf("%s/api/connect/v1/meetingRoom/%s/join", apiURL, meetingID), bytes.NewBuffer(requestBody))
 	request.Header.Set("Authorization", fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(apiKey))))
+	request.Header.Set("Content-Type", "application/json")
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	p.API.LogDebug("starting request")
 	resp, err := client.Do(request)
 	if err != nil {
+		p.API.LogError("error when trying to create meeting", err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	defer resp.Body.Close()
 
-	body, err = ioutil.ReadAll(resp.Body)
+	if resp.StatusCode >= 300 {
+		message := fmt.Sprintf("error when trying to create meeting: %d", resp.StatusCode)
+		p.API.LogError(message)
+		http.Error(w, message, resp.StatusCode)
+		return
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		p.API.LogError("error when trying to read response", err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	var response JoinResponse
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -99,16 +139,10 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !response.Success {
-		http.Error(w, response.Message, http.StatusInternalServerError)
+		message := fmt.Sprintf("error when trying to create meeting: %s", response.Message)
+		http.Error(w, message, http.StatusBadRequest)
 		return
 	}
-
-	result, err := json.Marshal(map[string]string{
-		"joinUrl": response.JoinURL,
-	})
-	w.Header().Add("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write(result)
 }
 
 // See https://developers.mattermost.com/extend/plugins/server/reference/
