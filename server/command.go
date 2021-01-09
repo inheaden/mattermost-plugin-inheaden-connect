@@ -11,7 +11,7 @@ import (
 )
 
 func (p *Plugin) getCommand() (*model.Command, error) {
-	iconData, err := command.GetIconData(p.API, "assets/AppIcon.png")
+	iconData, err := command.GetIconData(p.API, "assets/PM_1x1_CT.svg")
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get icon data")
 	}
@@ -19,7 +19,7 @@ func (p *Plugin) getCommand() (*model.Command, error) {
 	return &model.Command{
 		Trigger:              "inco",
 		AutoComplete:         true,
-		AutoCompleteDesc:     "Available commands: meetingroom",
+		AutoCompleteDesc:     "Available commands: meetingroom, help",
 		AutoCompleteHint:     "[command] [args]",
 		AutocompleteData:     p.getAutocompleteData(),
 		AutocompleteIconData: iconData,
@@ -50,6 +50,8 @@ func (p *Plugin) executeCommand(c *plugin.Context, args *model.CommandArgs) (str
 	switch action {
 	case "meetingroom":
 		return p.runMeetingRoomCommand(args, user)
+	case "help":
+		return p.runHelpCommand()
 	default:
 		return fmt.Sprintf("Unknown action %v", action), nil
 	}
@@ -77,6 +79,11 @@ func (p *Plugin) postCommandResponse(args *model.CommandArgs, text string) {
 
 func (p *Plugin) runMeetingRoomCommand(args *model.CommandArgs, user *model.User) (string, error) {
 	split := strings.Fields(args.Command)
+	if len(split) == 2 {
+		p.API.KVDelete(args.ChannelId)
+		return "Removed custom meeting id for this channel.", nil
+	}
+
 	if len(split) != 3 {
 		return fmt.Sprintf("Please specify the meeting id to use for this channel."), nil
 	}
@@ -84,13 +91,22 @@ func (p *Plugin) runMeetingRoomCommand(args *model.CommandArgs, user *model.User
 
 	p.API.KVSet(args.ChannelId, []byte(meetingID))
 
-	return "Success", nil
+	return "Meeting id for this channel has been set.", nil
+}
+
+func (p *Plugin) runHelpCommand() (string, error) {
+	return strings.ReplaceAll(`### Inheaden Connect plugin
+* |/inco meetingRoom [meetingRoomId]| Set a custom meeting room id for this channel.
+* |/inco help| Show this help message.
+	`, "|", "`"), nil
 }
 
 func (p *Plugin) getAutocompleteData() *model.AutocompleteData {
 	inco := model.NewAutocompleteData("inco", "[command]", "Starts a meeting on Inheaden Connect.")
-	meetingRoom := model.NewAutocompleteData("meetingroom", "[command] [meetingRoomId]", "Sets a meeting room id for this channel.")
+	meetingRoom := model.NewAutocompleteData("meetingroom", "[meetingRoomId]", "Sets a meeting room id for this channel. Leave empty for default.")
+	help := model.NewAutocompleteData("help", "", "Displays helpful information about this command.")
 
 	inco.AddCommand(meetingRoom)
+	inco.AddCommand(help)
 	return inco
 }
