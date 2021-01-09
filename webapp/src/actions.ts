@@ -4,32 +4,50 @@ import Client from "./client";
 
 export function showMeetingMessage(channelId) {
   return async (dispatch, getState) => {
-    const post = {
-      id: "incoPlugin" + Date.now(),
-      create_at: Date.now(),
-      update_at: 0,
-      edit_at: 0,
-      delete_at: 0,
-      is_pinned: false,
-      user_id: getState().entities.users.currentUserId,
-      channel_id: channelId,
-      root_id: "",
-      parent_id: "",
-      original_id: "",
-      message: "",
-      type: "custom_inco_start_meeting",
-      props: {},
-      hashtags: "",
-      pending_post_id: "",
-    };
+    try {
+      const startFunction = Client.showMeetingPost;
+      await startFunction(channelId);
+    } catch (error) {
+      let m = error.message;
+      console.error(error);
+      if (error.message && error.message[0] === "{") {
+        const e = JSON.parse(error.message);
 
-    dispatch({
-      type: PostTypes.RECEIVED_NEW_POST,
-      data: post,
-      channelId,
-    });
+        // Error is from Zoom API
+        if (e && e.message) {
+          m = "Inheaden Connect error: " + e.message;
+        }
+      }
 
-    return { error: null };
+      const post = {
+        id: "incoPlugin" + Date.now(),
+        create_at: Date.now(),
+        update_at: 0,
+        edit_at: 0,
+        delete_at: 0,
+        is_pinned: false,
+        user_id: getState().entities.users.currentUserId,
+        channel_id: channelId,
+        root_id: "",
+        parent_id: "",
+        original_id: "",
+        message: m,
+        type: "system_ephemeral",
+        props: {},
+        hashtags: "",
+        pending_post_id: "",
+      };
+
+      dispatch({
+        type: PostTypes.RECEIVED_NEW_POST,
+        data: post,
+        channelId,
+      });
+
+      return { error };
+    }
+
+    return { data: true };
   };
 }
 

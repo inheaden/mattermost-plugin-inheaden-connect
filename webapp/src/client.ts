@@ -17,13 +17,19 @@ class Client {
     meetingId = 0,
     force = false
   ) => {
-    const res = await doPost(`${this.url}/api/v1/meetings`, {
+    const res = await doPost(`${this.url}/api/v1/startMeeting`, {
       channel_id: channelId,
       personal,
       topic,
       meeting_id: meetingId,
     });
     return res.joinUrl;
+  };
+
+  showMeetingPost = async (channelId) => {
+    await doPost(`${this.url}/api/v1/showMeetingPost`, {
+      channel_id: channelId,
+    });
   };
 }
 

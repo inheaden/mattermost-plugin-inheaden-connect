@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/mattermost/mattermost-server/v5/plugin"
+
+	"github.com/mattermost/mattermost-server/v5/model"
 	"github.com/pkg/errors"
 )
 
@@ -59,8 +61,10 @@ func (p *Plugin) OnActivate() error {
 // ServeHTTP demonstrates a plugin that handles HTTP requests by greeting the world.
 func (p *Plugin) ServeHTTP(c *plugin.Context, w http.ResponseWriter, r *http.Request) {
 	switch path := r.URL.Path; path {
-	case "/api/v1/meetings":
+	case "/api/v1/startMeeting":
 		p.handleStartMeeting(w, r)
+	case "/api/v1/showMeetingPost":
+		p.handleShowMeetingPost(w, r)
 	default:
 		http.NotFound(w, r)
 	}
@@ -81,25 +85,14 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		p.API.LogError("error when trying to read response", err.Error())
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	var startMeetingRequest StartMeetingRequest
-	err = json.Unmarshal(body, &startMeetingRequest)
-	if err != nil {
-		p.API.LogError("error when trying to pares request", err.Error())
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	p.API.LogDebug(fmt.Sprintf("request body: %s", startMeetingRequest))
-
 	user, appErr := p.API.GetUser(userID)
 	if appErr != nil {
 		http.Error(w, appErr.Error(), appErr.StatusCode)
+		return
+	}
+
+	startMeetingRequest := p.getStartMeetingRequest(w, r)
+	if startMeetingRequest == nil {
 		return
 	}
 
@@ -133,6 +126,26 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(result)
+}
+
+func (p *Plugin) getStartMeetingRequest(w http.ResponseWriter, r *http.Request) *StartMeetingRequest {
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		p.API.LogError("error when trying to read response", err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil
+	}
+
+	var startMeetingRequest StartMeetingRequest
+	err = json.Unmarshal(body, &startMeetingRequest)
+	if err != nil {
+		p.API.LogError("error when trying to pares request", err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return nil
+	}
+	p.API.LogDebug(fmt.Sprintf("request body: %s", startMeetingRequest))
+
+	return &startMeetingRequest
 }
 
 func (p *Plugin) createMeeting(w http.ResponseWriter, r *http.Request, joinRequest JoinRequest, response *JoinResponse, meetingID string) {
@@ -192,6 +205,58 @@ func (p *Plugin) createMeeting(w http.ResponseWriter, r *http.Request, joinReque
 		http.Error(w, message, http.StatusBadRequest)
 		return
 	}
+}
+
+func (p *Plugin) handleShowMeetingPost(w http.ResponseWriter, r *http.Request) {
+	config := p.getConfiguration()
+	if err := config.IsValid(); err != nil {
+		http.Error(w, "This plugin is not configured.", http.StatusNotImplemented)
+		return
+	}
+
+	userID := r.Header.Get("Mattermost-User-Id")
+	if userID == "" {
+		http.Error(w, "Not authorized", http.StatusUnauthorized)
+		return
+	}
+
+	_, appErr := p.API.GetUser(userID)
+	if appErr != nil {
+		http.Error(w, appErr.Error(), appErr.StatusCode)
+		return
+	}
+
+	startMeetingRequest := p.getStartMeetingRequest(w, r)
+	if startMeetingRequest == nil {
+		return
+	}
+
+	textPost := &model.Post{UserId: userID, ChannelId: startMeetingRequest.ChannelID,
+		Message: "# Inheaden Connect", Type: "custom_inco_start_meeting"}
+
+	textPost.Props = model.StringInterface{
+		"from_webhook":      "true",
+		"override_username": "Inheaden Connect",
+		"override_icon_url": "https://inco.events/Icon.png",
+		"meeting_status":    "STARTED",
+		"meeting_personal":  false,
+		"user_count":        0,
+	}
+
+	_, appErr = p.API.CreatePost(textPost)
+	if appErr != nil {
+		http.Error(w, appErr.Error(), appErr.StatusCode)
+		return
+	}
+
+	response, err := json.Marshal(map[string]string{
+		"success": "ok",
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Write(response)
 }
 
 // See https://developers.mattermost.com/extend/plugins/server/reference/
