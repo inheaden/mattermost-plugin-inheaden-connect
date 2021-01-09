@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/mattermost/mattermost-server/v5/plugin"
+	"github.com/pkg/errors"
 )
 
 // Plugin implements the interface expected by the Mattermost server to communicate between the server and plugin processes.
@@ -37,6 +38,24 @@ type JoinRequest struct {
 	FullName string `json:"fullName"`
 }
 
+type StartMeetingRequest struct {
+	ChannelID string `json:"channel_id"`
+}
+
+func (p *Plugin) OnActivate() error {
+	command, err := p.getCommand()
+	if err != nil {
+		return errors.Wrap(err, "failed to get command")
+	}
+
+	err = p.API.RegisterCommand(command)
+	if err != nil {
+		return errors.Wrap(err, "failed to register command")
+	}
+
+	return nil
+}
+
 // ServeHTTP demonstrates a plugin that handles HTTP requests by greeting the world.
 func (p *Plugin) ServeHTTP(c *plugin.Context, w http.ResponseWriter, r *http.Request) {
 	switch path := r.URL.Path; path {
@@ -49,6 +68,7 @@ func (p *Plugin) ServeHTTP(c *plugin.Context, w http.ResponseWriter, r *http.Req
 
 func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 	p.API.LogInfo("handleStartMeeting")
+
 	config := p.getConfiguration()
 	if err := config.IsValid(); err != nil {
 		http.Error(w, "This plugin is not configured.", http.StatusNotImplemented)
@@ -60,6 +80,22 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Not authorized", http.StatusUnauthorized)
 		return
 	}
+
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		p.API.LogError("error when trying to read response", err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	var startMeetingRequest StartMeetingRequest
+	err = json.Unmarshal(body, &startMeetingRequest)
+	if err != nil {
+		p.API.LogError("error when trying to pares request", err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	p.API.LogDebug(fmt.Sprintf("request body: %s", startMeetingRequest))
 
 	user, appErr := p.API.GetUser(userID)
 	if appErr != nil {
@@ -74,9 +110,17 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 		fullName = user.Username
 	}
 
+	meetingID := p.configuration.DefaultMeetingRoomID
+	if len(startMeetingRequest.ChannelID) != 0 {
+		id, _ := p.API.KVGet(startMeetingRequest.ChannelID)
+		if id != nil {
+			meetingID = string(id)
+		}
+	}
+
 	p.createMeeting(w, r, JoinRequest{
 		FullName: fullName,
-	}, &response)
+	}, &response, meetingID)
 
 	result, err := json.Marshal(map[string]string{
 		"joinUrl": response.JoinURL,
@@ -91,11 +135,10 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 	w.Write(result)
 }
 
-func (p *Plugin) createMeeting(w http.ResponseWriter, r *http.Request, joinRequest JoinRequest, response *JoinResponse) {
+func (p *Plugin) createMeeting(w http.ResponseWriter, r *http.Request, joinRequest JoinRequest, response *JoinResponse, meetingID string) {
 
 	apiURL := p.configuration.InheadenConnectAPIURL
 	apiKey := p.configuration.APIKey
-	meetingID := p.configuration.DefaultMeetingRoomID
 
 	requestBody, err := json.Marshal(joinRequest)
 	if err != nil {
