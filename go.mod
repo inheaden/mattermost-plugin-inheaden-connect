@@ -1,9 +1,11 @@
-module github.com/mattermost/mattermost-plugin-starter-template
+module github.com/inheaden/mattermost-plugin-inheaden-connect
 
 go 1.12
 
 require (
+	github.com/google/martian v2.1.0+incompatible
 	github.com/kr/text v0.2.0 // indirect
+	github.com/mattermost/mattermost-plugin-api v0.0.12
 	github.com/mattermost/mattermost-server/v5 v5.26.2
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/pkg/errors v0.9.1

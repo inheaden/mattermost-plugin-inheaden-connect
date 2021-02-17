@@ -12,9 +12,10 @@ var manifest *model.Manifest
 
 const manifestStr = `
 {
-  "id": "com.mattermost.plugin-starter-template",
-  "name": "Plugin Starter Template",
-  "description": "This plugin serves as a starting point for writing a Mattermost plugin.",
+  "id": "io.inheaden.inheaden-connect",
+  "name": "Inheaden Connect plugin",
+  "description": "This plugin allows you to start meetings from within mattermost.",
+  "icon_path": "assets/AppIcon.png",
   "version": "0.1.0",
   "min_server_version": "5.12.0",
   "server": {
@@ -29,9 +30,34 @@ const manifestStr = `
     "bundle_path": "webapp/dist/main.js"
   },
   "settings_schema": {
-    "header": "",
+    "header": "To setup this plugin, create an ApiKey on Inheaden Connect.",
     "footer": "",
-    "settings": []
+    "settings": [
+      {
+        "key": "InheadenConnectAPIURL",
+        "display_name": "Inheaden Connect URL",
+        "type": "text",
+        "help_text": "The URL for the Inheaden Connect Api.",
+        "placeholder": "https://preview.inco.video",
+        "default": "https://preview.inco.video"
+      },
+      {
+        "key": "APIKey",
+        "display_name": "Your api key",
+        "type": "text",
+        "help_text": "The api key for your account.",
+        "placeholder": "XXX:YYY",
+        "default": null
+      },
+      {
+        "key": "DefaultMeetingRoomID",
+        "display_name": "Default meeting room ID",
+        "type": "text",
+        "help_text": "This ID will be used if no meeting room is specified.",
+        "placeholder": "",
+        "default": null
+      }
+    ]
   }
 }
 `
