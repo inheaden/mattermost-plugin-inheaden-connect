@@ -58,7 +58,6 @@ func (p *Plugin) OnActivate() error {
 	return nil
 }
 
-// ServeHTTP demonstrates a plugin that handles HTTP requests by greeting the world.
 func (p *Plugin) ServeHTTP(c *plugin.Context, w http.ResponseWriter, r *http.Request) {
 	switch path := r.URL.Path; path {
 	case "/api/v1/startMeeting":
@@ -160,7 +159,7 @@ func (p *Plugin) createMeeting(w http.ResponseWriter, r *http.Request, joinReque
 	}
 
 	client := http.Client{
-		Timeout: time.Duration(10 * time.Second),
+		Timeout: time.Duration(20 * time.Second),
 	}
 	request, err := http.NewRequest("POST", fmt.Sprintf("%s/api/connect/v1/meetingRoom/%s/join", apiURL, meetingID), bytes.NewBuffer(requestBody))
 	request.Header.Set("Authorization", fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(apiKey))))
@@ -237,7 +236,7 @@ func (p *Plugin) handleShowMeetingPost(w http.ResponseWriter, r *http.Request) {
 	textPost.Props = model.StringInterface{
 		"from_webhook":      "true",
 		"override_username": "Inheaden Connect",
-		"override_icon_url": "https://inco.events/Icon.png",
+		"override_icon_url": "https://cdn.inheaden.cloud/inco/brand/App%20Icons/AppIcon__512x512.png",
 		"meeting_status":    "STARTED",
 		"meeting_personal":  false,
 		"user_count":        0,
