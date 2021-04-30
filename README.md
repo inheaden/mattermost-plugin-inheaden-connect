@@ -6,8 +6,8 @@ The plugin enables you to use **Inheaden Connect** on you Mattermost instance an
 
 ## Features
 
-- [x] Configure endpoint and credentials
-- [x] Start meetings on channels
-- [x] Configure meeting room per channel
-- [ ] Configuration GUI
-- [ ] Show meeting status on Mattermost 
+-   [x] Configure endpoint and credentials
+-   [x] Start meetings on channels
+-   [x] Configure meeting room per channel
+-   [x] Configuration GUI
+-   [ ] Show meeting status on Mattermost

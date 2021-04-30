@@ -42,6 +42,14 @@ type JoinRequest struct {
 
 type StartMeetingRequest struct {
 	ChannelID string `json:"channel_id"`
+	RoomID    string `json:"room_id"`
+	RoomName  string `json:"room_name"`
+}
+
+type MeetingRoomResponse struct {
+	Id   string `json:"id"`
+	Name string `json:"name"`
+	Size int    `json:"type.maxParticipants"`
 }
 
 func (p *Plugin) OnActivate() error {
@@ -64,6 +72,8 @@ func (p *Plugin) ServeHTTP(c *plugin.Context, w http.ResponseWriter, r *http.Req
 		p.handleStartMeeting(w, r)
 	case "/api/v1/showMeetingPost":
 		p.handleShowMeetingPost(w, r)
+	case "/api/v1/getAllMeetingRooms":
+		p.handleGetAllMeetingRooms(w, r)
 	default:
 		http.NotFound(w, r)
 	}
@@ -103,7 +113,9 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 	}
 
 	meetingID := p.configuration.DefaultMeetingRoomID
-	if len(startMeetingRequest.ChannelID) != 0 {
+	if len(startMeetingRequest.RoomID) != 0 {
+		meetingID = startMeetingRequest.RoomID
+	} else if len(startMeetingRequest.ChannelID) != 0 {
 		id, _ := p.API.KVGet(startMeetingRequest.ChannelID)
 		if id != nil {
 			meetingID = string(id)
@@ -219,10 +231,15 @@ func (p *Plugin) handleShowMeetingPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, appErr := p.API.GetUser(userID)
+	user, appErr := p.API.GetUser(userID)
 	if appErr != nil {
 		http.Error(w, appErr.Error(), appErr.StatusCode)
 		return
+	}
+
+	fullName := user.GetFullName()
+	if len(fullName) == 0 {
+		fullName = user.Username
 	}
 
 	startMeetingRequest := p.getStartMeetingRequest(w, r)
@@ -235,11 +252,11 @@ func (p *Plugin) handleShowMeetingPost(w http.ResponseWriter, r *http.Request) {
 
 	textPost.Props = model.StringInterface{
 		"from_webhook":      "true",
+		"creator_name":      fullName,
 		"override_username": "Inheaden Connect",
 		"override_icon_url": "https://cdn.inheaden.cloud/inco/brand/App%20Icons/AppIcon__512x512.png",
-		"meeting_status":    "STARTED",
-		"meeting_personal":  false,
-		"user_count":        0,
+		"room_id":           startMeetingRequest.RoomID,
+		"room_name":         startMeetingRequest.RoomName,
 	}
 
 	_, appErr = p.API.CreatePost(textPost)
@@ -256,6 +273,95 @@ func (p *Plugin) handleShowMeetingPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(response)
+}
+
+func (p *Plugin) handleGetAllMeetingRooms(w http.ResponseWriter, r *http.Request) {
+	p.API.LogInfo("handleStartMeeting")
+
+	config := p.getConfiguration()
+	if err := config.IsValid(); err != nil {
+		http.Error(w, "This plugin is not configured.", http.StatusNotImplemented)
+		return
+	}
+
+	userID := r.Header.Get("Mattermost-User-Id")
+	if userID == "" {
+		http.Error(w, "Not authorized", http.StatusUnauthorized)
+		return
+	}
+
+	response, err := p.getAllMeetingRomms(w, r)
+	if err != nil {
+		return
+	}
+
+	res, _ := json.Marshal(response)
+	w.Write(res)
+}
+
+type FilterResponse struct {
+	Elements []MeetingRoomResponse `json:"elements"`
+}
+
+func (p *Plugin) getAllMeetingRomms(w http.ResponseWriter, r *http.Request) ([]MeetingRoomResponse, error) {
+	apiURL := p.configuration.InheadenConnectAPIURL
+	apiKey := p.configuration.APIKey
+
+	client := http.Client{
+		Timeout: time.Duration(20 * time.Second),
+	}
+
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"paging": map[string]interface{}{
+			"pageSize":   -1,
+			"pageNumber": 0,
+		},
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, err
+	}
+
+	request, err := http.NewRequest("POST", fmt.Sprintf("%s/api/connect/v1/meetingRoom/filter", apiURL), bytes.NewBuffer(requestBody))
+	request.Header.Set("Authorization", fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(apiKey))))
+	request.Header.Set("Content-Type", "application/json")
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, err
+	}
+
+	p.API.LogDebug("starting request")
+	resp, err := client.Do(request)
+	if err != nil {
+		p.API.LogError("error when trying to get meeting rooms", err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		message := fmt.Sprintf("error when trying to get meeting rooms: %d", resp.StatusCode)
+		p.API.LogError(message)
+		http.Error(w, message, resp.StatusCode)
+		return nil, errors.New(message)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		p.API.LogError("error when trying to read response", err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, err
+	}
+
+	var response FilterResponse
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, err
+	}
+
+	return response.Elements, nil
 }
 
 // See https://developers.mattermost.com/extend/plugins/server/reference/

@@ -15,8 +15,11 @@ const manifestStr = `
   "id": "io.inheaden.inheaden-connect",
   "name": "Inheaden Connect plugin",
   "description": "This plugin allows you to start meetings from within mattermost.",
+  "homepage_url": "https://inco.video",
+  "support_url": "https://inco.video/support",
+  "release_notes_url": "https://example.com/releases/v0.0.1",
   "icon_path": "assets/AppIcon.png",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "min_server_version": "5.12.0",
   "server": {
     "executables": {
@@ -38,14 +41,14 @@ const manifestStr = `
         "display_name": "Inheaden Connect URL",
         "type": "text",
         "help_text": "The URL for the Inheaden Connect Api.",
-        "placeholder": "https://preview.inco.video",
-        "default": "https://preview.inco.video"
+        "placeholder": "https://inco.video",
+        "default": "https://inco.video"
       },
       {
         "key": "APIKey",
         "display_name": "Your api key",
         "type": "text",
-        "help_text": "The api key for your account.",
+        "help_text": "The api key for your account. It needs access to read all meeting rooms.",
         "placeholder": "XXX:YYY",
         "default": null
       },
