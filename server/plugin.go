@@ -46,10 +46,14 @@ type StartMeetingRequest struct {
 	RoomName  string `json:"room_name"`
 }
 
+type MeetingRoomType struct {
+	MaxParticipants int `json:"maxParticipants"`
+}
+
 type MeetingRoomResponse struct {
-	Id   string `json:"id"`
-	Name string `json:"name"`
-	Size int    `json:"type.maxParticipants"`
+	Id   string          `json:"id"`
+	Name string          `json:"name"`
+	Type MeetingRoomType `json:"type"`
 }
 
 func (p *Plugin) OnActivate() error {

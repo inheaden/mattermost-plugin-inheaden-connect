@@ -79,24 +79,30 @@ const StartMeetingModal = ({
       >
         <p>Select a meeting room from the list below:</p>
         {isLoading && "loading ..."}
-        <div
-          style={{
-            display: "grid",
-            gap: "10px",
-          }}
-        >
-          {meetingRooms.map((room, idx) => (
-            <MeetingRoomItem
-              room={room}
-              key={idx}
-              onClick={() => {
-                close(channelId);
-                showMeeting(channelId, room);
-                startMeeting(channelId, room.id);
-              }}
-            />
-          ))}
-        </div>
+        {!isLoading && (
+          <div
+            style={{
+              display: "grid",
+              gap: "10px",
+            }}
+          >
+            {meetingRooms.length ? (
+              meetingRooms.map((room, idx) => (
+                <MeetingRoomItem
+                  room={room}
+                  key={idx}
+                  onClick={() => {
+                    close(channelId);
+                    showMeeting(channelId, room);
+                    startMeeting(channelId, room.id);
+                  }}
+                />
+              ))
+            ) : (
+              <div style={{ textAlign: "center" }}>No meeting rooms found</div>
+            )}
+          </div>
+        )}
       </div>
     </Modal>
   );
@@ -115,14 +121,15 @@ const MeetingRoomItem = ({
     <div
       style={{
         padding: "10px",
-        border: "1px solid",
+        border: "1px solid grey",
         borderRadius: "5px",
         cursor: "pointer",
       }}
       className="meeting-room-item"
       onClick={onClick}
     >
-      {room.name}
+      <strong style={{ display: "block" }}>{room.name}</strong>
+      <small>Max participants: {room.type?.maxParticipants}</small>
     </div>
   );
 };
