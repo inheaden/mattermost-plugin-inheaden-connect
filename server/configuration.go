@@ -20,7 +20,6 @@ import (
 type configuration struct {
 	InheadenConnectAPIURL string
 	APIKey                string
-	DefaultMeetingRoomID  string
 }
 
 // Clone shallow copies the configuration. Your implementation may require a deep copy if
@@ -37,9 +36,6 @@ func (c *configuration) IsValid() error {
 	}
 	if len(c.APIKey) == 0 {
 		return errors.New("please configure APIKey")
-	}
-	if len(c.DefaultMeetingRoomID) == 0 {
-		return errors.New("please configure DefaultMeetingRoomID")
 	}
 
 	return nil
