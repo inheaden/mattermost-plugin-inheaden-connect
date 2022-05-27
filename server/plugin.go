@@ -46,14 +46,20 @@ type StartMeetingRequest struct {
 	RoomName  string `json:"room_name"`
 }
 
+type GetMeetingRoomsRequest struct {
+	Name string `json:"name"`
+}
+
 type MeetingRoomType struct {
 	MaxParticipants int `json:"maxParticipants"`
 }
 
 type MeetingRoomResponse struct {
-	Id   string          `json:"id"`
-	Name string          `json:"name"`
-	Type MeetingRoomType `json:"type"`
+	Id        string          `json:"id"`
+	Name      string          `json:"name"`
+	Type      MeetingRoomType `json:"type"`
+	RoomToken string          `json:"roomToken"`
+	Password  string          `json:"password"`
 }
 
 func (p *Plugin) OnActivate() error {
@@ -116,15 +122,7 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 		fullName = user.Username
 	}
 
-	meetingID := p.configuration.DefaultMeetingRoomID
-	if len(startMeetingRequest.RoomID) != 0 {
-		meetingID = startMeetingRequest.RoomID
-	} else if len(startMeetingRequest.ChannelID) != 0 {
-		id, _ := p.API.KVGet(startMeetingRequest.ChannelID)
-		if id != nil {
-			meetingID = string(id)
-		}
-	}
+	meetingID := startMeetingRequest.RoomID
 
 	p.createMeeting(w, r, JoinRequest{
 		FullName: fullName,
@@ -251,8 +249,21 @@ func (p *Plugin) handleShowMeetingPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	textPost := &model.Post{UserId: userID, ChannelId: startMeetingRequest.ChannelID,
-		Message: "# Inheaden Connect", Type: "custom_inco_start_meeting"}
+	meetingRoom, err := p.getMeetingRoomById(w, r, startMeetingRequest.RoomID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	joinURL := p.makeJoinURL(meetingRoom)
+	textPost := &model.Post{
+		UserId:    userID,
+		ChannelId: startMeetingRequest.ChannelID,
+		Message: fmt.Sprintf(`Inheaden Connect Meeting in **%s**
+		
+		[Join Meeting](%s)`, startMeetingRequest.RoomName, joinURL),
+		Type: "custom_inco_start_meeting",
+	}
 
 	textPost.Props = model.StringInterface{
 		"from_webhook":      "true",
@@ -261,6 +272,7 @@ func (p *Plugin) handleShowMeetingPost(w http.ResponseWriter, r *http.Request) {
 		"override_icon_url": "https://cdn.inheaden.cloud/inco/brand/App%20Icons/AppIcon__512x512.png",
 		"room_id":           startMeetingRequest.RoomID,
 		"room_name":         startMeetingRequest.RoomName,
+		"join_url":          joinURL,
 	}
 
 	_, appErr = p.API.CreatePost(textPost)
@@ -279,6 +291,12 @@ func (p *Plugin) handleShowMeetingPost(w http.ResponseWriter, r *http.Request) {
 	w.Write(response)
 }
 
+func (p *Plugin) makeJoinURL(meetingRoom *MeetingRoomResponse) string {
+	apiURL := p.configuration.InheadenConnectAPIURL
+
+	return fmt.Sprintf("%s/app/join?token=%s&password=%s", apiURL, meetingRoom.RoomToken, meetingRoom.Password)
+}
+
 func (p *Plugin) handleGetAllMeetingRooms(w http.ResponseWriter, r *http.Request) {
 	p.API.LogInfo("handleStartMeeting")
 
@@ -294,7 +312,9 @@ func (p *Plugin) handleGetAllMeetingRooms(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	response, err := p.getAllMeetingRomms(w, r)
+	request := p.getMeetingRoomsRequest(w, r)
+
+	response, err := p.getAllMeetingRomms(request, w, r)
 	if err != nil {
 		return
 	}
@@ -303,11 +323,27 @@ func (p *Plugin) handleGetAllMeetingRooms(w http.ResponseWriter, r *http.Request
 	w.Write(res)
 }
 
-type FilterResponse struct {
-	Elements []MeetingRoomResponse `json:"elements"`
+func (p *Plugin) getMeetingRoomsRequest(w http.ResponseWriter, r *http.Request) *GetMeetingRoomsRequest {
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		p.API.LogError("error when trying to read response", err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil
+	}
+
+	var request GetMeetingRoomsRequest
+	err = json.Unmarshal(body, &request)
+	if err != nil {
+		p.API.LogError("error when trying to parse request", err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return nil
+	}
+	p.API.LogDebug(fmt.Sprintf("request body: %s", request))
+
+	return &request
 }
 
-func (p *Plugin) getAllMeetingRomms(w http.ResponseWriter, r *http.Request) ([]MeetingRoomResponse, error) {
+func (p *Plugin) getMeetingRoomById(w http.ResponseWriter, r *http.Request, meetingID string) (*MeetingRoomResponse, error) {
 	apiURL := p.configuration.InheadenConnectAPIURL
 	apiKey := p.configuration.APIKey
 
@@ -315,12 +351,84 @@ func (p *Plugin) getAllMeetingRomms(w http.ResponseWriter, r *http.Request) ([]M
 		Timeout: time.Duration(20 * time.Second),
 	}
 
-	requestBody, err := json.Marshal(map[string]interface{}{
+	request, err := http.NewRequest("GET", fmt.Sprintf("%s/api/connect/v1/meetingRoom/%s", apiURL, meetingID), http.NoBody)
+	request.Header.Set("Authorization", fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(apiKey))))
+	request.Header.Set("Content-Type", "application/json")
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, err
+	}
+
+	p.API.LogDebug("starting request")
+	resp, err := client.Do(request)
+	if err != nil {
+		p.API.LogError("error when trying to get meeting room", err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		message := fmt.Sprintf("error when trying to get meeting room: %d", resp.StatusCode)
+		p.API.LogError(message)
+		http.Error(w, message, resp.StatusCode)
+		return nil, errors.New(message)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		p.API.LogError("error when trying to read response", err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, err
+	}
+
+	var response MeetingRoomResponse
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, err
+	}
+
+	return &response, nil
+}
+
+type FilterResponse struct {
+	Elements []MeetingRoomResponse `json:"elements"`
+}
+
+func (p *Plugin) getAllMeetingRomms(meetingRoomsRequest *GetMeetingRoomsRequest, w http.ResponseWriter, r *http.Request) ([]MeetingRoomResponse, error) {
+	apiURL := p.configuration.InheadenConnectAPIURL
+	apiKey := p.configuration.APIKey
+
+	client := http.Client{
+		Timeout: time.Duration(20 * time.Second),
+	}
+
+	requestBodyMap := map[string]interface{}{
 		"paging": map[string]interface{}{
-			"pageSize":   -1,
+			"pageSize":   10,
 			"pageNumber": 0,
+			"sorting": []map[string]interface{}{
+				{
+					"sortBy":  "name",
+					"sortDir": "asc",
+				},
+			},
 		},
-	})
+	}
+
+	if meetingRoomsRequest.Name != "" {
+		requestBodyMap["filter"] = map[string]interface{}{
+			"comparator": map[string]interface{}{
+				"attribute":  "name",
+				"comparator": "isLike",
+				"value":      meetingRoomsRequest.Name,
+			},
+		}
+	}
+
+	requestBody, err := json.Marshal(requestBodyMap)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return nil, err

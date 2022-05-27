@@ -51,14 +51,6 @@ const manifestStr = `
         "help_text": "The api key for your account. It needs access to read all meeting rooms.",
         "placeholder": "XXX:YYY",
         "default": null
-      },
-      {
-        "key": "DefaultMeetingRoomID",
-        "display_name": "Default meeting room ID",
-        "type": "text",
-        "help_text": "This ID will be used if no meeting room is specified.",
-        "placeholder": "",
-        "default": null
       }
     ]
   }

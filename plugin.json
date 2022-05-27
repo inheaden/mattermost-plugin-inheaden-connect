@@ -1,50 +1,43 @@
 {
-  "id": "io.inheaden.inheaden-connect",
-  "name": "Inheaden Connect plugin",
-  "description": "This plugin allows you to start meetings from within mattermost.",
-  "homepage_url": "https://inco.video",
-  "support_url": "https://inco.video/support",
-  "release_notes_url": "https://example.com/releases/v0.0.1",
-  "version": "0.2.0",
-  "min_server_version": "5.12.0",
-  "icon_path": "assets/AppIcon.png",
-  "server": {
-    "executables": {
-      "linux-amd64": "server/dist/plugin-linux-amd64",
-      "darwin-amd64": "server/dist/plugin-darwin-amd64",
-      "windows-amd64": "server/dist/plugin-windows-amd64.exe"
+    "id": "io.inheaden.inheaden-connect",
+    "name": "Inheaden Connect plugin",
+    "description": "This plugin allows you to start meetings from within mattermost.",
+    "homepage_url": "https://inco.video",
+    "support_url": "https://inco.video/support",
+    "release_notes_url": "https://example.com/releases/v0.0.1",
+    "version": "0.3.0",
+    "min_server_version": "5.12.0",
+    "icon_path": "assets/AppIcon.png",
+    "server": {
+        "executables": {
+            "linux-amd64": "server/dist/plugin-linux-amd64",
+            "darwin-amd64": "server/dist/plugin-darwin-amd64",
+            "windows-amd64": "server/dist/plugin-windows-amd64.exe"
+        }
+    },
+    "webapp": {
+        "bundle_path": "webapp/dist/main.js"
+    },
+    "settings_schema": {
+        "header": "To setup this plugin, create an ApiKey on Inheaden Connect.",
+        "footer": "",
+        "settings": [
+            {
+                "key": "InheadenConnectAPIURL",
+                "display_name": "Inheaden Connect URL",
+                "type": "text",
+                "help_text": "The URL for the Inheaden Connect Api.",
+                "placeholder": "https://inco.video",
+                "default": "https://inco.video"
+            },
+            {
+                "key": "APIKey",
+                "display_name": "Your api key",
+                "type": "text",
+                "help_text": "The api key for your account. It needs access to read all meeting rooms.",
+                "placeholder": "XXX:YYY",
+                "default": null
+            }
+        ]
     }
-  },
-  "webapp": {
-    "bundle_path": "webapp/dist/main.js"
-  },
-  "settings_schema": {
-    "header": "To setup this plugin, create an ApiKey on Inheaden Connect.",
-    "footer": "",
-    "settings": [
-      {
-        "key": "InheadenConnectAPIURL",
-        "display_name": "Inheaden Connect URL",
-        "type": "text",
-        "help_text": "The URL for the Inheaden Connect Api.",
-        "placeholder": "https://inco.video",
-        "default": "https://inco.video"
-      },
-      {
-        "key": "APIKey",
-        "display_name": "Your api key",
-        "type": "text",
-        "help_text": "The api key for your account. It needs access to read all meeting rooms.",
-        "placeholder": "XXX:YYY",
-        "default": null
-      },
-      {
-        "key": "DefaultMeetingRoomID",
-        "display_name": "Default meeting room ID",
-        "type": "text",
-        "help_text": "This ID will be used if no meeting room is specified.",
-        "default": null
-      }
-    ]
-  }
 }
