@@ -51,9 +51,11 @@ type MeetingRoomType struct {
 }
 
 type MeetingRoomResponse struct {
-	Id   string          `json:"id"`
-	Name string          `json:"name"`
-	Type MeetingRoomType `json:"type"`
+	Id        string          `json:"id"`
+	Name      string          `json:"name"`
+	Type      MeetingRoomType `json:"type"`
+	RoomToken string          `json:"roomToken"`
+	Password  string          `json:"password"`
 }
 
 func (p *Plugin) OnActivate() error {
@@ -251,8 +253,21 @@ func (p *Plugin) handleShowMeetingPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	textPost := &model.Post{UserId: userID, ChannelId: startMeetingRequest.ChannelID,
-		Message: "# Inheaden Connect", Type: "custom_inco_start_meeting"}
+	meetingRoom, err := p.getMeetingRoomById(w, r, startMeetingRequest.RoomID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	joinURL := p.makeJoinURL(meetingRoom)
+	textPost := &model.Post{
+		UserId:    userID,
+		ChannelId: startMeetingRequest.ChannelID,
+		Message: fmt.Sprintf(`Inheaden Connect Meeting in **%s**
+		
+		[Join Meeting](%s)`, startMeetingRequest.RoomName, joinURL),
+		Type: "custom_inco_start_meeting",
+	}
 
 	textPost.Props = model.StringInterface{
 		"from_webhook":      "true",
@@ -261,6 +276,7 @@ func (p *Plugin) handleShowMeetingPost(w http.ResponseWriter, r *http.Request) {
 		"override_icon_url": "https://cdn.inheaden.cloud/inco/brand/App%20Icons/AppIcon__512x512.png",
 		"room_id":           startMeetingRequest.RoomID,
 		"room_name":         startMeetingRequest.RoomName,
+		"join_url":          joinURL,
 	}
 
 	_, appErr = p.API.CreatePost(textPost)
@@ -277,6 +293,12 @@ func (p *Plugin) handleShowMeetingPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(response)
+}
+
+func (p *Plugin) makeJoinURL(meetingRoom *MeetingRoomResponse) string {
+	apiURL := p.configuration.InheadenConnectAPIURL
+
+	return fmt.Sprintf("%s/app/join?token=%s&password=%s", apiURL, meetingRoom.RoomToken, meetingRoom.Password)
 }
 
 func (p *Plugin) handleGetAllMeetingRooms(w http.ResponseWriter, r *http.Request) {
@@ -303,6 +325,56 @@ func (p *Plugin) handleGetAllMeetingRooms(w http.ResponseWriter, r *http.Request
 	w.Write(res)
 }
 
+func (p *Plugin) getMeetingRoomById(w http.ResponseWriter, r *http.Request, meetingID string) (*MeetingRoomResponse, error) {
+	apiURL := p.configuration.InheadenConnectAPIURL
+	apiKey := p.configuration.APIKey
+
+	client := http.Client{
+		Timeout: time.Duration(20 * time.Second),
+	}
+
+	request, err := http.NewRequest("GET", fmt.Sprintf("%s/api/connect/v1/meetingRoom/%s", apiURL, meetingID), http.NoBody)
+	request.Header.Set("Authorization", fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(apiKey))))
+	request.Header.Set("Content-Type", "application/json")
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, err
+	}
+
+	p.API.LogDebug("starting request")
+	resp, err := client.Do(request)
+	if err != nil {
+		p.API.LogError("error when trying to get meeting room", err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		message := fmt.Sprintf("error when trying to get meeting room: %d", resp.StatusCode)
+		p.API.LogError(message)
+		http.Error(w, message, resp.StatusCode)
+		return nil, errors.New(message)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		p.API.LogError("error when trying to read response", err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, err
+	}
+
+	var response MeetingRoomResponse
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, err
+	}
+
+	return &response, nil
+}
+
 type FilterResponse struct {
 	Elements []MeetingRoomResponse `json:"elements"`
 }
@@ -319,6 +391,12 @@ func (p *Plugin) getAllMeetingRomms(w http.ResponseWriter, r *http.Request) ([]M
 		"paging": map[string]interface{}{
 			"pageSize":   -1,
 			"pageNumber": 0,
+			"sorting": []map[string]interface{}{
+				{
+					"sortBy":  "name",
+					"sortDir": "asc",
+				},
+			},
 		},
 	})
 	if err != nil {

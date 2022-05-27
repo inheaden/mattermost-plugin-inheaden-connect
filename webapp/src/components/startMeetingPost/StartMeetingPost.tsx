@@ -11,6 +11,7 @@ import { SVGS } from "../../svgs";
 const mapStateToProps = (state: any, ownProps: any) => ({
   roomId: ownProps.post.props.room_id,
   roomName: ownProps.post.props.room_name,
+  joinUrl: ownProps.post.props.join_url,
   creatorName: ownProps.post.props.creator_name,
   currentChannelId: getCurrentChannelId(state),
 });
@@ -42,12 +43,17 @@ const StartMeetingPost = ({
   theme,
   roomId,
   roomName,
+  joinUrl,
 }: Props) => {
   const style = getStyle(theme);
   return (
     <div style={style.body}>
       <p>
         {creatorName} has started a meeting in <strong>{roomName}</strong>:
+        <br />
+        <a href={joinUrl} target="_blank" rel="noopener noreferrer">
+          Join via URL
+        </a>
       </p>
       <button
         className="btn btn-primary"

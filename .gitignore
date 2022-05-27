@@ -11,3 +11,4 @@ dist/
 
 .local
 .env
+env.sh
