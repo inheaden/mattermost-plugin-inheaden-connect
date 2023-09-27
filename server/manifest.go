@@ -19,7 +19,7 @@ const manifestStr = `
   "support_url": "https://inco.video/support",
   "release_notes_url": "https://example.com/releases/v0.0.1",
   "icon_path": "assets/AppIcon.png",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "min_server_version": "5.12.0",
   "server": {
     "executables": {

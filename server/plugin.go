@@ -260,8 +260,8 @@ func (p *Plugin) handleShowMeetingPost(w http.ResponseWriter, r *http.Request) {
 		UserId:    userID,
 		ChannelId: startMeetingRequest.ChannelID,
 		Message: fmt.Sprintf(`Inheaden Connect Meeting in **%s**
-		
-		[Join Meeting](%s)`, startMeetingRequest.RoomName, joinURL),
+
+[Join Meeting](%s)`, startMeetingRequest.RoomName, joinURL),
 		Type: "custom_inco_start_meeting",
 	}
 
